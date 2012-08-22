@@ -224,7 +224,58 @@ namespace E002
 
             NB: Don't hesitate to ask questions, if you have any.
             ");
+
+
+            // Episode 2 Homework Additions
+
+            Print(@"
+            ----------------------------------------------------------------------------
+            Homework to REMOVE a product from the shopping basket with the new
+
+            RemoveProductFromBasketMessage
+
+            Let's remove all of those candles from the basket
+            ");
+
+            var removeProductMsg= new RemoveProductFromBasketMessage("candles");
+
+            ApplyMessage(basket, removeProductMsg);
+
+            Print(@"
+
+            Let's look at the contents of the basket to ensure that item is gone:
+            ");
+
+            foreach (var total in basket.GetProductTotals())
+            {
+                Console.WriteLine("  {0}: {1}", total.Key, total.Value);
+            }
+
+            Print(@"
+
+            Cool.  Now, using the ChangeProductQuantityMessage,
+            let's change the quantity of shrimp to 5:
+            ");
+
+            var changeProductQty = new ChangeProductQuantityMessage("shrimp", 5);
+
+            ApplyMessage(basket, changeProductQty);
+
+            Print(@"
+
+            Let's look at the contents of the basket to ensure we only have 5 shrimp:
+            ");
+
+            foreach (var total in basket.GetProductTotals())
+            {
+                Console.WriteLine("  {0}: {1}", total.Key, total.Value);
+            }
         }
+
+
+
+
+
 
         static void ApplyMessage(ProductBasket basket, object message)
         {
@@ -289,8 +340,50 @@ namespace E002
             public IDictionary<string, double> GetProductTotals()
             {
                 return _products;
-            } 
-        }
+            }
+
+            // New Methods for Episode 2 Homework assignment
+
+            public void RemoveProduct(string name)
+            {
+
+                if (_products.ContainsKey(name))
+                {
+                    // found a key with that name
+                    // so remove that product
+
+                    _products.Remove(name);
+
+                    Console.WriteLine("Shopping Basket said: I removed all units of '{0}'", name);
+                }
+            }
+
+            public void When(RemoveProductFromBasketMessage toBasketMessage)
+            {
+                Console.Write("[Message Applied]: ");
+                RemoveProduct(toBasketMessage.Name);
+            }
+
+
+            public void ChangeProductQuantity(string name, double quantity)
+            {
+                if ((quantity >=0) && (_products.ContainsKey(name)))
+                {
+                    _products[name] = quantity;
+
+                    Console.WriteLine("Shopping Basket said: I changed '{0}' quantity to '{1}'", name, quantity);
+                }
+            }
+
+            public void When(ChangeProductQuantityMessage toBasketMessage)
+            {
+                Console.Write("[Message Applied]: ");
+                ChangeProductQuantity(toBasketMessage.Name, toBasketMessage.Quantity);
+            }
+
+        } // end Product Basket
+
+
         [Serializable]
         public class AddProductToBasketMessage
         {
@@ -307,5 +400,40 @@ namespace E002
                 return string.Format("Add {0} {1} to basket", Quantity, Name);
             }
         }
+
+        // New Message for Episode 2 Homework assignment
+
+        [Serializable]
+        public class RemoveProductFromBasketMessage
+        {
+            public readonly string Name;
+
+            public RemoveProductFromBasketMessage(string name)
+            {
+                Name = name;
+            }
+            public override string ToString()
+            {
+                return string.Format("Remove {0} from basket", Name);
+            }
+        }
+
+        [Serializable]
+        public class ChangeProductQuantityMessage
+        {
+            public readonly string Name;
+            public readonly double Quantity;
+
+            public ChangeProductQuantityMessage(string name, double quantity)
+            {
+                Name = name;
+                Quantity = quantity;
+            }
+            public override string ToString()
+            {
+                return string.Format("Change quantity of {0} to {1} in the basket", Name, Quantity);
+            }
+        }
+
     }
 }
