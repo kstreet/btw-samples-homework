@@ -418,6 +418,11 @@ namespace E002
             }
         }
 
+
+        // TODO:  As mentioned in Episode 3 - Commanding Your Words
+        // The Message below is bad form.  Humans are not likley to say, "ChangeProductQuantity"
+        // Revisit other ways to implement the intent below, but with better message naming
+
         [Serializable]
         public class ChangeProductQuantityMessage
         {
