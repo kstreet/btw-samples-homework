@@ -13,6 +13,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "E003-commanding-your-words", "E003-commanding-your-words", "{DEA85B88-DEF5-43D8-95F2-DD842CD4D016}"
 	ProjectSection(SolutionItems) = preProject
 		..\E003-commanding-your-words\factory.png = ..\E003-commanding-your-words\factory.png
+		..\E003-commanding-your-words\FactoryLanguage.md = ..\E003-commanding-your-words\FactoryLanguage.md
 		..\E003-commanding-your-words\ReadMe.md = ..\E003-commanding-your-words\ReadMe.md
 	EndProjectSection
 EndProject
