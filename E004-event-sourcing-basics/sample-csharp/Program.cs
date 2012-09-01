@@ -88,7 +88,12 @@ namespace E004_event_sourcing_basics
             // our current understanding of the state of the factory
             // they get their data from the methods that use them while the methods react to events
             readonly List<string> _ourListOfEmployeeNames = new List<string>();
-            readonly List<CarPart[]> _shipmentsWaitingToBeUnloaded = new List<CarPart[]>(); 
+            readonly List<CarPart[]> _shipmentsWaitingToBeUnloaded = new List<CarPart[]>();
+
+            // Homework Adds:
+            readonly List<string> _employeesWhoHaveUnloadedCargoBayToday = new List<string>();
+            readonly List<string> _employeesWhoHaveProducedACarToday = new List<string>();
+
 
             public void AssignEmployeeToFactory(string employeeName)
             {
@@ -130,7 +135,7 @@ namespace E004_event_sourcing_basics
                     return;
                 }
 
-                if (_shipmentsWaitingToBeUnloaded.Count> 2)
+                if (_shipmentsWaitingToBeUnloaded.Count > 2)
                 {
                     Fail(":> More than two shipments can't fit into this cargo bay :(");
                     return;
@@ -154,6 +159,99 @@ namespace E004_event_sourcing_basics
                 }
             }
             
+            // Homework - New Functionality to Factory 
+            public void UnloadShipmentFromCargoBay(string employeeName)
+            {
+                Print("?> Command: unload shipment from cargo bay");
+
+                // Rule: Are there actually shipments to unload (cargo bay not empty)?
+                if (_shipmentsWaitingToBeUnloaded.Count < 1)
+                {
+                    Fail(":> There are no shipments to unload in this cargo bay :(");
+                    return;
+                }
+
+                // Rule: ONLY if the employee hasn't unloaded the cargo bay today
+                if (_employeesWhoHaveUnloadedCargoBayToday.Contains(employeeName))
+                {
+                    Fail(":> '" + employeeName + "' has already unloaded a cargo bay today, find someone else :");
+                    return;
+                }
+
+                DoRealWork("'" + employeeName + "'" + " is working on unloading the cargo bay");
+                RecordThat(new ShipmentUnloadedFromCargoBay
+                        {
+                            EmployeeName = employeeName
+                        });
+            }
+
+            // Homework
+            public void ProduceCar(string employeeName, string carModel)
+            {
+                // Rule: Model T is the only car type that we can currently produce.
+                if (carModel != "Model T")
+                {
+                    Fail(":> '" + carModel + "' is not a car we can make. Can only make a 'Model T' :(");
+                    return;
+                }
+
+                // Rule: if we have an employee available that has not produced a car
+                // TOOO:  I normally wouldn't check for employee availability until after inventory
+                // checks are done but if I can avoid ugly/expensive inventory code below I will!
+
+                if (_employeesWhoHaveProducedACarToday.Contains(employeeName))
+                {
+                    Fail(":> '" + employeeName + "' has already produced a car today, find someone else :");
+                    return;
+                }
+
+                // Rule:  Parts Needed To Build a Model T
+                // 6 wheels
+                // 1 engine
+                // 2 sets of "bits and pieces"
+                
+                // TODO:  REPLACE UGLY INVENTORY COUNTING CODE
+                // THERE IS A BETTER WAY TO DO THIS BUT NOT DOING IT NOW :)
+                // TODO: Rinat, let's discuss a refactor to what I SHOULD have done
+
+                var wheelInventory = 0;
+                var engineInventory = 0;
+                var bitsAndPiecesInventory = 0;
+
+                //Console.WriteLine("_shipmentsWaitingToBeUnloaded contains {0} items", _shipmentsWaitingToBeUnloaded.Count);
+
+                foreach (CarPart[] cp in _shipmentsWaitingToBeUnloaded)
+                {
+                    CarPart[] allWheels = Array.FindAll(cp, element => element.Name == "wheels");
+                    wheelInventory += allWheels.Sum(item => item.Quantity);
+                    Console.WriteLine("Wheels = {0}", wheelInventory);
+
+                    CarPart[] allEngines = Array.FindAll(cp, element => element.Name == "engine");
+                    engineInventory += allEngines.Sum(item => item.Quantity);
+                    Console.WriteLine("Engines = {0}", engineInventory);
+
+                    CarPart[] allBandP = Array.FindAll(cp, element => element.Name == "bits and pieces");
+                    bitsAndPiecesInventory += allBandP.Sum(item => item.Quantity);
+                    Console.WriteLine("Bits and Pieces = {0}", bitsAndPiecesInventory);
+                }
+
+                // Have enough parts to build the car?
+                if (wheelInventory < 6 || engineInventory < 1 || bitsAndPiecesInventory < 2)
+                {
+                    // TODO:  Tell them what they need more of
+                    Fail(":> We do not have enough parts to build a '" + carModel + "' :");
+                    return;
+                }
+
+                DoRealWork("'" + employeeName + "'" + " is building a '" + carModel + "'");
+
+                RecordThat(new CarProduced
+                {
+                    EmployeeName = employeeName,
+                    CarModel = carModel
+                });
+            }
+
 
             void DoPaperWork(string workName)
             {
@@ -217,6 +315,44 @@ namespace E004_event_sourcing_basics
             {
                 
             }
+
+            // Homework
+            void AnnounceInsideFactory(ShipmentUnloadedFromCargoBay e)
+            {
+                // Rule: when we unload shipments from cargo bay then all shipments that are already
+                // stored in the cargo bay are considered unloaded
+                // this means that they are available to the factory for use in the production of cars.
+                // This means that all the parts added to
+                // _shipmentsWaitingToBeUnloaded by the ShipmentTransferredToCargoBay event are now 100%
+                // available for use.
+
+                // We do NOT want to clear this list in this example because it BECOMES
+                // the available inventory.
+                // TODO: Should probably use diff vars to represent
+                // "stuff waiting to be unloaded" vs "stuff that has been unloaded"
+                // _shipmentsWaitingToBeUnloaded.Clear();
+
+                // Can uncomment line below to test that cars can't be built
+                // without inventory of parts
+                // _shipmentsWaitingToBeUnloaded.Clear();
+
+                // Rule: an employee can only unload the cargo bay once a day
+                // so remember who just did it
+
+                _employeesWhoHaveUnloadedCargoBayToday.Add(e.EmployeeName);
+            }
+
+            void AnnounceInsideFactory(CarProduced e)
+            {
+     
+                // TODO:  Reduce the Inventory of parts that were just used
+                // TODO:  But the whole inventory system needs to be revamped I think :)
+
+                // Rule: an employee can only build one car a day
+                // so remember who just did it
+
+                _employeesWhoHaveProducedACarToday.Add(e.EmployeeName);
+            }
         }
 
         public class EmployeeAssignedToFactory : IEvent
@@ -239,6 +375,7 @@ namespace E004_event_sourcing_basics
                 return string.Format("'{0}' was heard within the walls. It meant:\r\n    '{1}'", TheWord, Meaning);
             }
         }
+
         public class ShipmentTransferredToCargoBay : IEvent
         {
             public string ShipmentName;
@@ -256,6 +393,27 @@ namespace E004_event_sourcing_basics
             }
         }
 
+        // Homework Adds
+        public class ShipmentUnloadedFromCargoBay : IEvent
+        {
+            public string EmployeeName;
+            
+            public override string ToString()
+            {
+                return string.Format("Employee: '{0}' unloaded all shipments in the cargo bay", EmployeeName);
+            }
+        }
+
+        public class CarProduced : IEvent
+        {
+            public string EmployeeName;
+            public string CarModel;
+
+            public override string ToString()
+            {
+                return string.Format("Employee: '{0}' produced a '{1}'", EmployeeName, CarModel);
+            }
+        }
 
         // let's run this implementation3 of the factory
         // (right-click on this project in Visual Studio and choose "set as StartUp project"
@@ -285,6 +443,23 @@ namespace E004_event_sourcing_basics
                     new CarPart("engine", 7),
                     new CarPart("bits and pieces", 2)
                 });
+
+
+            // Homework:  UnloadShipmentFromCargoBay
+            factory.UnloadShipmentFromCargoBay("luke");
+
+            // let's make sure luke isn;t asked to do that again
+            factory.UnloadShipmentFromCargoBay("luke");
+
+            factory.ProduceCar("yoda", "Model T");
+
+            // let's make sure you can't build another car model
+            factory.ProduceCar("luke", "Model A");
+
+            // let's make sure that make sure employee can't be asked to build 2 cars in one day
+            factory.ProduceCar("yoda", "Model T");
+
+            
 
 
             Print("\r\nIt's the end of the day. Let's read our journal of events once more:\r\n");
