@@ -17,7 +17,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "E003-commanding-your-words"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "E004-event-sourcing-basics", "..\E004-event-sourcing-basics\sample-csharp\E004-event-sourcing-basics.csproj", "{E4B8B807-943A-4F60-9157-AEDE7DF3996B}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "E005-testing-use-cases", "..\E005-testing-use-cases\sample-csharp\E005-testing-use-cases\E005-testing-use-cases.csproj", "{63386748-DD98-4C84-87B9-EB85631653BC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "E005-testing-use-cases", "..\E005-testing-use-cases\sample-csharp\E005-testing-use-cases.csproj", "{63386748-DD98-4C84-87B9-EB85631653BC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
