@@ -17,11 +17,11 @@ namespace E005_testing_use_cases
         // Note that we have moved the place where we keep track of the current
         // state of the Factory.  In E004, Factory state was also inside of the Factory class itself.
         // Now, we have moved all Factory state into its own "FactoryState" class.
-        readonly FactoryState _state;
+        readonly FactoryState _aggregateState;
 
-        public FactoryAggregate(FactoryState state)
+        public FactoryAggregate(FactoryState aggregateState)
         {
-            _state = state;
+            _aggregateState = aggregateState;
         }
 
         // internal "state" variables
@@ -30,7 +30,7 @@ namespace E005_testing_use_cases
         {
             //Print("?> Command: Assign employee {0} to factory", employeeName);
 
-            if (_state.ListOfEmployeeNames.Contains(employeeName))
+            if (_aggregateState.ListOfEmployeeNames.Contains(employeeName))
             {
                 // yes, this is really weird check, but this factory has really strict rules.
                 // manager should've remembered that
@@ -57,7 +57,7 @@ namespace E005_testing_use_cases
         public void TransferShipmentToCargoBay(string shipmentName, params CarPart[] parts)
         {
             //Print("?> Command: transfer shipment to cargo bay");
-            if (_state.ListOfEmployeeNames.Count == 0)
+            if (_aggregateState.ListOfEmployeeNames.Count == 0)
             {
                 Fail(":> There has to be somebody at factory in order to accept shipment");
                 return;
@@ -68,7 +68,7 @@ namespace E005_testing_use_cases
                 return;
             }
 
-            if (_state.ShipmentsWaitingToBeUnloaded.Count > 2)
+            if (_aggregateState.ShipmentsWaitingToBeUnloaded.Count > 2)
             {
                 Fail(":> More than two shipments can't fit into this cargo bay :(");
                 return;
@@ -104,7 +104,7 @@ namespace E005_testing_use_cases
             // we record by jotting down notes in our journal
             Changes.Add(e);
             // and also immediately change the state
-            _state.Mutate(e);
+            _aggregateState.Mutate(e);
         }
 
 
@@ -137,15 +137,15 @@ namespace E005_testing_use_cases
         public readonly List<CarPart[]> ShipmentsWaitingToBeUnloaded = new List<CarPart[]>();
 
         // announcements inside the factory
-        void AnnounceInsideFactory(EmployeeAssignedToFactory e)
+        void AnnounceInsideFactory(EmployeeAssignedToFactory theEvent)
         {
-            ListOfEmployeeNames.Add(e.EmployeeName);
+            ListOfEmployeeNames.Add(theEvent.EmployeeName);
         }
-        void AnnounceInsideFactory(ShipmentTransferredToCargoBay e)
+        void AnnounceInsideFactory(ShipmentTransferredToCargoBay theEvent)
         {
-            ShipmentsWaitingToBeUnloaded.Add(e.CarParts);
+            ShipmentsWaitingToBeUnloaded.Add(theEvent.CarParts);
         }
-        void AnnounceInsideFactory(CurseWordUttered e)
+        void AnnounceInsideFactory(CurseWordUttered theEvent)
         {
 
         }
@@ -155,7 +155,7 @@ namespace E005_testing_use_cases
         // It then CHANGES THE STATE of the factory by calling the methods above
         // that wrap the readonly state variables that should be modified only when the associated event(s)
         // that they care about have occured.
-        public void Mutate(IEvent e)
+        public void Mutate(IEvent theEvent)
         {
             // we also announce this event inside of the factory.
             // this way, all workers will immediately know
@@ -166,10 +166,10 @@ namespace E005_testing_use_cases
             // This shortcut "dynamic" syntax means:
             // "Call this FactoryState's instance of the AnnounceInsideFactory method
             // that has a method signature of:
-            // AnnounceInsideFactory(WhateverTheCurrentTypeIsOfThe-e-EventThatWasPassedIntoMutate)".
+            // AnnounceInsideFactory(WhateverTheCurrentTypeIsOf-theEvent-ThatWasPassedIntoMutate)".
 
 
-            ((dynamic)this).AnnounceInsideFactory((dynamic)e);
+            ((dynamic)this).AnnounceInsideFactory((dynamic)theEvent);
         }
     }
 

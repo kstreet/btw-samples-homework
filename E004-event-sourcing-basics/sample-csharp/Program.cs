@@ -220,6 +220,20 @@ namespace E004_event_sourcing_basics
 
                 //Console.WriteLine("_shipmentsWaitingToBeUnloaded contains {0} items", _shipmentsWaitingToBeUnloaded.Count);
 
+                // TODO:  Factory management has confirmed our suspicions that we can't use the
+                // _shipmentsWaitingToBeUnloaded list = to what the inventory in the factory is
+                // There is other work involved in the "UnloadShipmentFromCargoBay" process
+                // that must be performed before we know the ACTUAL parts available for car production.
+                // car parts have to be unloaded first before actually being used for production
+                // HINT: Given, some car parts that were just transferred to cargo bay
+                // and you have enough workers at factory; 
+                // when you try to produce a car, you will get an exception of:
+                // "not enough car parts at factory. did you forget to unload them first?"
+
+                // This confirms orginal concern that the orginal way inventory was tracked needed to be changed
+                // Rather than change in E004 sample, will move existing code to E005 where the code will
+                // be covered by specifications and unit tests which makes the changes less risky
+
                 foreach (CarPart[] cp in _shipmentsWaitingToBeUnloaded)
                 {
                     CarPart[] allWheels = Array.FindAll(cp, element => element.Name == "wheels");
@@ -319,6 +333,7 @@ namespace E004_event_sourcing_basics
             // Homework
             void AnnounceInsideFactory(ShipmentUnloadedFromCargoBay e)
             {
+                // TODO:  See Inventory refactoring notes above.
                 // Rule: when we unload shipments from cargo bay then all shipments that are already
                 // stored in the cargo bay are considered unloaded
                 // this means that they are available to the factory for use in the production of cars.
