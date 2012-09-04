@@ -96,6 +96,133 @@ namespace E005_testing_use_cases
         }
     }
 
+    // Homework - Cover existing E004 homework code with specs/tests
+    public sealed class when_unload_shipment_from_cargo_bay : factory_specs
+    {
+        // Rule: Are there actually shipments to unload (cargo bay not empty)?
+        [Test]
+        public void no_shipments_to_unload()
+        {
+            // Basically, event history has no record that a ShipmentTransferredToCargoBay has happened
+            
+            // Given = new IEvent[]; (there are no events)
+            When = f => f.UnloadShipmentFromCargoBay("darth");
+            ThenException = ex => ex.Message.Contains("There are no shipments to unload in this cargo bay");
+        }
+
+        // Rule: Employee can only unload if cargo bay not empty and
+        // employee hasn't already unloaded the cargo bay today
+        [Test]
+        public void employee_has_already_unloaded_cargo_bay_today()
+        {
+            Given = new IEvent[]
+                {
+                    new ShipmentTransferredToCargoBay("shipment-20", new CarPart("flux capacitor", 1)),
+                    new ShipmentUnloadedFromCargoBay("yoda")
+                };
+            When = f => f.UnloadShipmentFromCargoBay("yoda");
+            ThenException = ex => ex.Message.Contains("has already unloaded a cargo bay today");
+        }
+    }
+
+    public sealed class when_produce_car : factory_specs
+    {
+        // Rule: Model T is the only car type that we can currently produce.
+        [Test]
+        public void car_model_not_model_t()
+        {
+            When = f => f.ProduceCar("luke", "Model A");
+            ThenException = ex => ex.Message.Contains("is not a car we can make.");
+        }
+
+        // Rule: if we have an employee available that has not produced a car
+        [Test]
+        public void employee_has_already_produced_a_car_today()
+        {
+            Given = new IEvent[]
+                {
+                    new CarProduced("jabba", "Model T")
+                };
+            When = f => f.ProduceCar("jabba", "Model T");
+            ThenException = ex => ex.Message.Contains("has already produced a car today");
+        }
+
+        // Rule:  Parts Needed To Build a Model T
+        // 6 wheels
+        // 1 engine
+        // 2 sets of "bits and pieces"
+
+        [Test]
+        public void not_enough_wheels_for_model_t()
+        {
+            Given = new IEvent[]
+                {
+                    // Need 6 wheels for Model T
+                    new ShipmentTransferredToCargoBay("shipmt-12", new CarPart("wheels", 5)),
+                    new ShipmentTransferredToCargoBay("shipmt-30", new CarPart("engine",1)), 
+                    new ShipmentTransferredToCargoBay("shipmt-31", new CarPart("bits and pieces", 40))
+                };
+            When = f => f.ProduceCar("wicket", "Model T");
+            ThenException = ex => ex.Message.Contains("do not have enough parts to build");
+
+        }
+        
+        [Test]
+        public void not_enough_engines_for_model_t()
+        {
+            Given = new IEvent[]
+                {
+                    new ShipmentTransferredToCargoBay("shipmt-12", new CarPart("wheels", 6)),
+                    // Need 1 engine for Model T
+                    new ShipmentTransferredToCargoBay("shipmt-30", new CarPart("engine",0)), 
+                    new ShipmentTransferredToCargoBay("shipmt-31", new CarPart("bits and pieces", 2))
+                };
+            When = f => f.ProduceCar("wicket", "Model T");
+            ThenException = ex => ex.Message.Contains("do not have enough parts to build");
+
+        }
+        [Test]
+        public void not_enough_bits_and_pieces_for_model_t()
+        {
+            Given = new IEvent[]
+                {
+                    new ShipmentTransferredToCargoBay("shipmt-12", new CarPart("wheels", 6)),
+                    new ShipmentTransferredToCargoBay("shipmt-30", new CarPart("engine",1)),
+                    // Need 2 bits and pieces for Model T
+                    new ShipmentTransferredToCargoBay("shipmt-31", new CarPart("bits and pieces", 1))
+                };
+            When = f => f.ProduceCar("wicket", "Model T");
+            ThenException = ex => ex.Message.Contains("do not have enough parts to build");
+
+        }
+        //[Test]
+        //public void have_available_employee_and_parts_for_model_t()
+        //{
+        //    // This is a SUCCESS test
+
+        //    // TODO: Some of these events don't really have to exist in current ProduceCar implementation
+        //    // but probably should refactor so they have to
+
+        //    Given = new IEvent[]
+        //        {
+        //            new EmployeeAssignedToFactory("chubakka"),
+        //            // Rule:  Parts Needed To Build a Model T
+        //            // 6 wheels
+        //            // 1 engine
+        //            // 2 sets of "bits and pieces"
+        //            new ShipmentTransferredToCargoBay("shipmt-12", new CarPart("wheels", 6)),
+        //            new ShipmentTransferredToCargoBay("shipmt-30", new CarPart("engine",1)),
+        //            new ShipmentTransferredToCargoBay("shipmt-31", new CarPart("bits and pieces", 2)),
+        //            new ShipmentUnloadedFromCargoBay("luke"),
+        //            new CarProduced("luke", "Model T")
+        //        };
+        //    When = f => f.ProduceCar("chubakka", "Model T");
+
+        //    // THEN
+        //    // TODO:  What is syntax for "Then"?
+        //    //   
+    }
+
 
     public class Program
     {
@@ -105,6 +232,9 @@ namespace E005_testing_use_cases
             // have it, we'll run it in a console as well
             RunSpecification(new when_assign_employee_to_factory());
             RunSpecification(new when_transfer_shipment_to_cargo_bay());
+            // Homework
+            RunSpecification(new when_unload_shipment_from_cargo_bay());
+            RunSpecification(new when_produce_car());
         }
 
         static void RunSpecification(factory_specs specification)
@@ -126,7 +256,7 @@ namespace E005_testing_use_cases
                 }
                 catch(Exception ex)
                 {
-                    Print(ConsoleColor.DarkRed, "\r\nFAIL!");
+                    Print(ConsoleColor.DarkRed, "\r\nFAIL! " + ex.Message);
                 }
             }
         }

@@ -88,6 +88,107 @@ namespace E005_testing_use_cases
             }
         }
 
+        // Homework - New Functionality to Factory 
+        public void UnloadShipmentFromCargoBay(string employeeName)
+        {
+            //Print("?> Command: unload shipment from cargo bay");
+
+            // Rule: Are there actually shipments to unload (cargo bay not empty)?
+            if (_aggregateState.ShipmentsWaitingToBeUnloaded.Count < 1)
+            {
+                Fail(":> There are no shipments to unload in this cargo bay :(");
+                return;
+            }
+
+            // Rule: ONLY if the employee hasn't unloaded the cargo bay today
+            if (_aggregateState.EmployeesWhoHaveUnloadedCargoBayToday.Contains(employeeName))
+            {
+                Fail(":> '" + employeeName + "' has already unloaded a cargo bay today, find someone else :");
+                return;
+            }
+
+            DoRealWork("'" + employeeName + "'" + " is working on unloading the cargo bay");
+            RecordThat(new ShipmentUnloadedFromCargoBay(employeeName));
+        }
+
+        // Homework
+        public void ProduceCar(string employeeName, string carModel)
+        {
+            // Rule: Model T is the only car type that we can currently produce.
+            if (carModel != "Model T")
+            {
+                Fail(":> '" + carModel + "' is not a car we can make. Can only make a 'Model T' :(");
+                return;
+            }
+
+            // Rule: if we have an employee available that has not produced a car
+            // TOOO:  I normally wouldn't check for employee availability until after inventory
+            // checks are done but if I can avoid ugly/expensive inventory code below I will!
+
+            if (_aggregateState.EmployeesWhoHaveProducedACarToday.Contains(employeeName))
+            {
+                Fail(":> '" + employeeName + "' has already produced a car today, find someone else :");
+                return;
+            }
+
+            // Rule:  Parts Needed To Build a Model T
+            // 6 wheels
+            // 1 engine
+            // 2 sets of "bits and pieces"
+
+            // TODO:  REPLACE UGLY INVENTORY COUNTING CODE
+            // THERE IS A BETTER WAY TO DO THIS BUT NOT DOING IT NOW :)
+            // TODO: Rinat, let's discuss a refactor to what I SHOULD have done
+
+            var wheelInventory = 0;
+            var engineInventory = 0;
+            var bitsAndPiecesInventory = 0;
+
+            //Console.WriteLine("_shipmentsWaitingToBeUnloaded contains {0} items", _shipmentsWaitingToBeUnloaded.Count);
+
+            // TODO:  Factory management has confirmed our suspicions that we can't use the
+            // _shipmentsWaitingToBeUnloaded list = to what the inventory in the factory is
+            // There is other work involved in the "UnloadShipmentFromCargoBay" process
+            // that must be performed before we know the ACTUAL parts available for car production.
+            // car parts have to be unloaded first before actually being used for production
+            // HINT: Given, some car parts that were just transferred to cargo bay
+            // and you have enough workers at factory; 
+            // when you try to produce a car, you will get an exception of:
+            // "not enough car parts at factory. did you forget to unload them first?"
+
+            // This confirms orginal concern that the orginal way inventory was tracked needed to be changed
+            // Rather than change in E004 sample, will move existing code to E005 where the code will
+            // be covered by specifications and unit tests which makes the changes less risky
+
+            foreach (CarPart[] cp in _aggregateState.ShipmentsWaitingToBeUnloaded)
+            {
+                CarPart[] allWheels = Array.FindAll(cp, element => element.Name == "wheels");
+                wheelInventory += allWheels.Sum(item => item.Quantity);
+                Console.WriteLine("Wheels = {0}", wheelInventory);
+
+                CarPart[] allEngines = Array.FindAll(cp, element => element.Name == "engine");
+                engineInventory += allEngines.Sum(item => item.Quantity);
+                Console.WriteLine("Engines = {0}", engineInventory);
+
+                CarPart[] allBandP = Array.FindAll(cp, element => element.Name == "bits and pieces");
+                bitsAndPiecesInventory += allBandP.Sum(item => item.Quantity);
+                Console.WriteLine("Bits and Pieces = {0}", bitsAndPiecesInventory);
+            }
+
+            // Have enough parts to build the car?
+            if (wheelInventory < 6 || engineInventory < 1 || bitsAndPiecesInventory < 2)
+            {
+                // TODO:  Tell them what they need more of
+                Fail(":> We do not have enough parts to build a '" + carModel + "' :");
+                return;
+            }
+
+            DoRealWork("'" + employeeName + "'" + " is building a '" + carModel + "'");
+
+            RecordThat(new CarProduced(employeeName, carModel));
+        }
+
+
 
         void DoPaperWork(string workName)
         {
@@ -106,8 +207,6 @@ namespace E005_testing_use_cases
             // and also immediately change the state
             _aggregateState.Mutate(e);
         }
-
-
     }
 
     // FactoryState is a new class we added in this E005 sample to keep track of Factory state.
@@ -133,10 +232,35 @@ namespace E005_testing_use_cases
         }
 
         // lock our state changes down to only events that can modify these lists
+        // these are the things that hold the data that represents 
+        // our current understanding of the state of the factory
+        // they get their data from the methods that use them while the methods react to events
+
         public readonly List<string> ListOfEmployeeNames = new List<string>();
         public readonly List<CarPart[]> ShipmentsWaitingToBeUnloaded = new List<CarPart[]>();
+        // Homework Adds:
+        public readonly List<string> EmployeesWhoHaveUnloadedCargoBayToday = new List<string>();
+        public readonly List<string> EmployeesWhoHaveProducedACarToday = new List<string>();
 
-        // announcements inside the factory
+        // announcements inside the factory that get called by
+        // the dynamic code shortcut in the Mutate method below.
+        // As these methods change the content inside of the properties (lists inside) they call,
+        // our understanding of the current state of the factory is updated.
+        // It is important to note that the official state of the factory
+        // that these methods change, only changes AFTER each event they react to
+        // has been RECORDED in the journal of "Changes" defined at the start of this file.
+        // If an event hasn't been recorded in the CHanges list, the state
+        // of the factory WILL NOT CHANGE.  State changes are ALWAYS reflected in the
+        // stream of events inside of the Changes journal because these
+        // "Announce" methods below are not executed until events have been logged 
+        // to the Changes journal and have been called by "RecordThat"'s call to "Mutate".
+        // This is a very powerful aspect of event sourcing (ES).
+        // We should NEVER directly modify these aggregate state variables
+        // (by calling the list directly for example), they are only ever modifed
+        // as side effects of events that have occured and have been logged.
+        // Pretty much ensures a perfect audit log of what has happened.
+
+
         void AnnounceInsideFactory(EmployeeAssignedToFactory theEvent)
         {
             ListOfEmployeeNames.Add(theEvent.EmployeeName);
@@ -149,6 +273,45 @@ namespace E005_testing_use_cases
         {
 
         }
+        // Homework
+        void AnnounceInsideFactory(ShipmentUnloadedFromCargoBay theEvent)
+        {
+            // TODO:  See Inventory refactoring notes.
+            // Rule: when we unload shipments from cargo bay then all shipments that are already
+            // stored in the cargo bay are considered unloaded
+            // this means that they are available to the factory for use in the production of cars.
+            // This means that all the parts added to
+            // ShipmentsWaitingToBeUnloaded by the ShipmentTransferredToCargoBay event are now 100%
+            // available for use.
+
+            // We do NOT want to clear this list in this example because it BECOMES
+            // the available inventory.
+            // TODO: Should probably use diff vars to represent
+            // "stuff waiting to be unloaded" vs "stuff that has been unloaded"
+            // ShipmentsWaitingToBeUnloaded.Clear();
+
+            // Can uncomment line below to test that cars can't be built
+            // without inventory of parts
+            // ShipmentsWaitingToBeUnloaded.Clear();
+
+            // Rule: an employee can only unload the cargo bay once a day
+            // so remember who just did it
+
+            EmployeesWhoHaveUnloadedCargoBayToday.Add(theEvent.EmployeeName);
+        }
+
+        void AnnounceInsideFactory(CarProduced theEvent)
+        {
+
+            // TODO:  Reduce the Inventory of parts that were just used
+            // TODO:  But the whole inventory system needs to be revamped I think :)
+
+            // Rule: an employee can only build one car a day
+            // so remember who just did it
+
+            EmployeesWhoHaveProducedACarToday.Add(theEvent.EmployeeName);
+        }
+
 
         // This is the very important Mutate method that provides the only public
         // way for factory state to be modified.  Mutate ONLY ACCEPTS EVENTS that have happened.
@@ -226,6 +389,42 @@ namespace E005_testing_use_cases
             return builder.ToString();
         }
     }
+
+    // Homework Adds
+    [Serializable]
+    public class ShipmentUnloadedFromCargoBay : IEvent
+    {
+        public string EmployeeName;
+
+        public ShipmentUnloadedFromCargoBay(string employeeName)
+        {
+            EmployeeName = employeeName;
+        }
+
+        public override string ToString()
+        {
+            return string.Format("Employee: '{0}' unloaded all shipments in the cargo bay", EmployeeName);
+        }
+    }
+
+    [Serializable]
+    public class CarProduced : IEvent
+    {
+        public string EmployeeName;
+        public string CarModel;
+
+        public CarProduced(string employeeName, string carModel)
+        {
+            EmployeeName = employeeName;
+            CarModel = carModel;
+        }
+
+        public override string ToString()
+        {
+            return string.Format("Employee: '{0}' produced a '{1}'", EmployeeName, CarModel);
+        }
+    }
+
 
     public interface IEvent
     {
