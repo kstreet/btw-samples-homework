@@ -89,7 +89,7 @@ namespace E007_re_factory
 
             PrintWhen(when);
             when.Compile()(customer);
-            return customer.Changes;
+            return customer.EventsThatHappened;
         }
 
         static void PrintWhen(Expression<Action<FactoryAggregate>> when)

@@ -4,26 +4,30 @@ using NUnit.Framework;
 // ReSharper disable InconsistentNaming
 namespace E007_re_factory
 {
-
-    // first we refactor our factory from previous episode a little bit.
-    // 1. rename TheFactoryJournal into -> Changes
+    # region This C# Project's Evolutionary Record
+    // first we refactor our Factory from previous episode a little bit.
+    // 1. rename TheFactoryJournal into -> Changes --> and Now --> "EventsThatHappened"
     // 2. move state variables into a separate class (so that we can't accidentally touch it)
     // 3. allow loading this state variable from a journal
     // 4. add constructors and [Serializable] attribute to all events
     // this code is located inside "factory.cs"
-    
+    #endregion
+
+    #region Specifications, NUnit, and How To Start Test Runner Notes
     // then we start writing short "specification" stories, using C# syntax
     // the specs below are written as runnable NUnit tests and/or you can see similar
     // test output displayed to the console in this sample (Ctrl+F5).
-    // to see this in NUnit using Visual Studio, try right-clicking on the E005-testing-use-cases project
+    // Or...to see this in NUnit using Visual Studio instead, try right-clicking on the E007_re_factory project
     // and navigate to Test With --> NUnit and click "Run" in the NUnit test runner to see the test output
+    #endregion
 
-    // this was the first specification example mentioned in podcast Episode 5
-    // typically one specification class like this is used per aggregate command method
-    // this class grouping of specifications and use cases that test each method is also called a "Test Fixture"
-    // each [Test] specification covering a use case is also called a "Unit Test"
-    // in this case, testing the behavior of the "TransferShipmentToCargoBay" method on the factory aggregate
+    // this was the first Specification example mentioned in podcast Episode 5
+    // typically one specification class like this is used per Aggregate command method
+    // this class grouping of Specifications and Use Cases that test each method is also called a "Test Fixture"
+    // each [Test] Specification covering a Use Case is also called a "Unit Test"
+    // in this case, testing the behavior of the "TransferShipmentToCargoBay" method on the Factory Aggregate
     // and the serveral use cases related to that command method
+
     public sealed class when_transfer_shipment_to_cargo_bay : factory_specs
     {
         // Use Case: Empty Shipment

@@ -5,18 +5,31 @@ using System.Text;
 
 namespace E007_re_factory
 {
+    // the definition of the (Car) Factory itself
     public class FactoryAggregate
     {
-        // THE Factory Journal!
+        #region EventsThatHappened Naming Notes
         // In the Episode 4 (E004) sample code
         // we named the Journal variable "JournalOfFactoryEvents"
-        // Here, we change it to its more broadly applicable production name of "Changes"
+        // In E005 we changed it to its more broadly applicable production name of "Changes".
         // It is still the in memory list where we "write down" the EVENTS that HAVE HAPPENED.
-        public List<IEvent> Changes = new List<IEvent>();
+        // In E007 I am torn with the wording/naming here.
+        // "JournalOfFactoryEvents" is very specific to this Aggregate but in real world probably no Journal exists
+        // "Changes" can be used generically across Aggregates but is not very descriptive to a domain expert
+        // In the real world people would "see" or "hear" Events that they observe/sense
+        // but I don't want "EventsIHeard" "EventsISaw" "EventsISensed" so I will go with generically reusable
+        // name that people may actually say in real life.
+        // For a balance between meaningful to domain and reusability I will try "EventsThatHappened" for now.
+        #endregion
 
+        public List<IEvent> EventsThatHappened = new List<IEvent>();
+
+        # region The Place Where We Track FactoryState Has Moved To Its Own Class
         // Note that we have moved the place where we keep track of the current
         // state of the Factory.  In E004, Factory state was also inside of the Factory class itself.
         // Now, we have moved all Factory state into its own "FactoryState" class.
+        # endregion
+
         readonly FactoryState _aggregateState;
 
         public FactoryAggregate(FactoryState aggregateState)
@@ -200,15 +213,16 @@ namespace E007_re_factory
             //Print(" > Work:  heavy stuff... {0}...", workName);
 
         }
-        void RecordThat(IEvent e)
+        void RecordThat(IEvent theEvent)
         {
-            // we record by jotting down notes in our journal
-            Changes.Add(e);
-            // and also immediately change the state
-            _aggregateState.Mutate(e);
+            // we record by jotting down notes of the Events that happened in our "journal"
+            EventsThatHappened.Add(theEvent);
+            // and also immediately change the state of the Aggregate after we officially record it
+            _aggregateState.ChangeMyStateBecauseOf(theEvent);
         }
     }
 
+    #region The State of the Factory Has Moved To Its Own Class - Defined Here
     // FactoryState is a new class we added in this E005 sample to keep track of Factory state.
     // This moves the location of where Factory state is stored from the Factory class itself
     // to its own dedicated state class.  This is helpful because we can mark the
@@ -216,50 +230,59 @@ namespace E007_re_factory
     // (readonly, for example, is how we declared an instance of FactoryState at the top of this file)
     // (and the ListOfEmployeeNames and ShipmentsWaitingToBeUnloaded lists below are also declared as readonly)
     // This helps to ensure that you can ONLY MODIFY THE STATE OF THE FACTORY BY USING EVENTS that are known to have happened.
-
+    #endregion
     public class FactoryState
     {
-        public FactoryState(IEnumerable<IEvent> events)
+        public FactoryState(IEnumerable<IEvent> allEventsThatHaveEverHappened)
         {
+            #region What This Constructor Is Doing
             // this will load and replay the "list" of all the events that are passed into this contructor
             // this brings this FactoryState instance up to date with 
             // all events that have EVER HAPPENED to its associated Factory aggregate entity
-            foreach (var @event in events)
+            // Note, I don't like funky @ symbols in my variables to bypass reserved words
+            // and I aslo think the story reads better when it is called "eventThatHappened" anyway.
+            #endregion
+            foreach (var eventThatHappened in allEventsThatHaveEverHappened)
             {
-                // call my public Mutate method (defined below) to get my state up to date
-                Mutate(@event);
+                #region Naming Notes
+                // call my public ChangeMyStateBecauseOf method (defined below) to get my current state up to date
+                // This used to be called "Mutate" but in the code I saw that used it, renaming to
+                // "ChangeMyStateBecauseOf" made the code story read better to me.
+                #endregion
+                ChangeMyStateBecauseOf(eventThatHappened);
             }
         }
 
-        // lock our state changes down to only events that can modify these lists
+        #region What Are These And Why readonly?
+        // lock our state changes down to only Events that can modify these lists
         // these are the things that hold the data that represents 
         // our current understanding of the state of the factory
-        // they get their data from the methods that use them while the methods react to events
-
+        // they get their data from the methods that use them while the methods react to Events that happen
+        #endregion
         public readonly List<string> ListOfEmployeeNames = new List<string>();
         public readonly List<CarPart[]> ShipmentsWaitingToBeUnloaded = new List<CarPart[]>();
-        // Homework Adds:
         public readonly List<string> EmployeesWhoHaveUnloadedCargoBayToday = new List<string>();
         public readonly List<string> EmployeesWhoHaveProducedACarToday = new List<string>();
 
+        #region How We Tell Everyone About Events That Have Happend With A Perfect Audit Log Of It
         // announcements inside the factory that get called by
-        // the dynamic code shortcut in the Mutate method below.
+        // the dynamic code shortcut in the ChangeMyStateBecauseOf method below.
         // As these methods change the content inside of the properties (lists inside) they call,
-        // our understanding of the current state of the factory is updated.
-        // It is important to note that the official state of the factory
-        // that these methods change, only changes AFTER each event they react to
-        // has been RECORDED in the journal of "Changes" defined at the start of this file.
-        // If an event hasn't been recorded in the CHanges list, the state
+        // our understanding of the current state of the Factory is updated.
+        // It is important to note that the official state of the Factory
+        // that these methods change, only changes AFTER each Event they react to
+        // has been RECORDED in the "journal" of "EventsThatHappened" defined at the start of this file.
+        // If an Event hasn't been recorded in the EventsThatHappened list, the state
         // of the factory WILL NOT CHANGE.  State changes are ALWAYS reflected in the
-        // stream of events inside of the Changes journal because these
-        // "Announce" methods below are not executed until events have been logged 
-        // to the Changes journal and have been called by "RecordThat"'s call to "Mutate".
-        // This is a very powerful aspect of event sourcing (ES).
-        // We should NEVER directly modify these aggregate state variables
+        // stream of Events inside of the EventsThatHappened journal because these
+        // "Announce" methods below are not executed until Events have been logged 
+        // to the EventsThatHappened journal and have been called by the "RecordThat"'s call to "ChangeMyStateBecauseOf".
+        // This is a very powerful aspect of Event Sourcing (ES).
+        // We should NEVER directly modify these Aggregate state variables
         // (by calling the list directly for example), they are only ever modifed
-        // as side effects of events that have occured and have been logged.
-        // Pretty much ensures a perfect audit log of what has happened.
-
+        // as side effects of Events that have occured and have been logged.
+        // This approach pretty much ensures a perfect audit log of all things that have ever happened.
+        #endregion
 
         void AnnounceInsideFactory(EmployeeAssignedToFactory theEvent)
         {
@@ -312,34 +335,41 @@ namespace E007_re_factory
             EmployeesWhoHaveProducedACarToday.Add(theEvent.EmployeeName);
         }
 
-
-        // This is the very important Mutate method that provides the only public
-        // way for factory state to be modified.  Mutate ONLY ACCEPTS EVENTS that have happened.
-        // It then CHANGES THE STATE of the factory by calling the methods above
-        // that wrap the readonly state variables that should be modified only when the associated event(s)
+        #region What Is This Method For And Why Is It Named This Way?
+        // This is the very important "ChangeMyStateBecauseOf" method that provides the only public
+        // way for Factory state to be modified.  "ChangeMyStateBecauseOf" ONLY ACCEPTS EVENTS that have happened.
+        // It then CHANGES THE STATE of the Factory by calling the methods above
+        // that wrap the readonly state variables that should be modified only when the associated Event(s)
         // that they care about have occured.
-        public void Mutate(IEvent theEvent)
+        // This method used to be called "Mutate" but in the code I saw that used it, renaming it to
+        // "ChangeMyStateBecauseOf" made the code story read better to me.
+        #endregion
+        public void ChangeMyStateBecauseOf(IEvent theEvent)
         {
-            // we also announce this event inside of the factory.
-            // this way, all workers will immediately know
-            // what is going on inside the factory.  We are telling the compiler
+            #region What Is This Code Doing?
+            // In addition to recording the Event, we also announce this Event inside of the Factory.
+            // This way, all Factory Workers (people) will immediately know
+            // what is going on inside the Factory.  We are telling the compiler
             // to call one of the "AnnounceInsideFactory" methods defined above.
             // The "dynamic" syntax below is just a shortcut we are using so we don't
-            // have to create a large if/else block for a bunch of specific event types.
-            // This shortcut "dynamic" syntax means:
+            // have to create a large if/else block for a bunch of specific static Event types.
+            // This shortcut using the "dynamic" keyword syntax means:
             // "Call this FactoryState's instance of the AnnounceInsideFactory method
             // that has a method signature of:
-            // AnnounceInsideFactory(WhateverTheCurrentTypeIsOf-theEvent-ThatWasPassedIntoMutate)".
-
+            // AnnounceInsideFactory(WhateverTheCurrentTypeIsOf-theEvent-ThatWasPassedIntoChangeMyStateBecauseOf)".
+            #endregion
 
             ((dynamic)this).AnnounceInsideFactory((dynamic)theEvent);
         }
     }
 
+    #region [Serializable] and [DataContract] Attribute Notes
+    // notice that the "Serializable" attribute has been added above all Events in this sample
+    // usually all Event implementation/contracts either have the Serializable (BinaryFormatter) or
+    // DataContract (custom formatters) attribute above them (and any classes they call)
+    // so they can be serialized for saving/communication
+    #endregion
 
-    // notice that the "Serializable" attribute has been added above all events in this sample
-    // usually all event implementation/contracts either have the Serializable (BinaryFormatter) or
-    // DataContract (custom formatters) attributes above them so they can be serialized for saving/communication
     [Serializable]
     public class EmployeeAssignedToFactory : IEvent
     {
@@ -352,7 +382,7 @@ namespace E007_re_factory
 
         public override string ToString()
         {
-            return string.Format("new worker joins our forces: '{0}'", EmployeeName);
+            return string.Format("new factory worker joins our forces: '{0}'", EmployeeName);
         }
     }
     [Serializable]
@@ -389,8 +419,6 @@ namespace E007_re_factory
             return builder.ToString();
         }
     }
-
-    // Homework Adds
     [Serializable]
     public class ShipmentUnloadedFromCargoBay : IEvent
     {
@@ -406,7 +434,6 @@ namespace E007_re_factory
             return string.Format("Employee: '{0}' unloaded all shipments in the cargo bay", EmployeeName);
         }
     }
-
     [Serializable]
     public class CarProduced : IEvent
     {
@@ -424,13 +451,6 @@ namespace E007_re_factory
             return string.Format("Employee: '{0}' produced a '{1}'", EmployeeName, CarModel);
         }
     }
-
-
-    public interface IEvent
-    {
-
-    }
-
     [Serializable]
     public sealed class CarPart
     {
@@ -441,6 +461,11 @@ namespace E007_re_factory
             Name = name;
             Quantity = quantity;
         }
+    }
+
+    public interface IEvent
+    {
+        // I guess just a marker interface for now
     }
 
 }
