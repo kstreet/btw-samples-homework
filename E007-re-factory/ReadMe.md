@@ -1,4 +1,4 @@
-## Being the Worst - E007
+## Being the Worst
 
 This folder contains additional materials for **Episode 7 - RE-Factory**:
 

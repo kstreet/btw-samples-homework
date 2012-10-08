@@ -37,8 +37,7 @@ namespace E007_re_factory
             _aggregateState = aggregateState;
         }
 
-        // internal "state" variables
-
+        // methods that modify internal "state" variables by doing their work and generating Events
         public void AssignEmployeeToFactory(string employeeName)
         {
             //Print("?> Command: Assign employee {0} to factory", employeeName);
@@ -48,7 +47,6 @@ namespace E007_re_factory
                 // yes, this is really weird check, but this factory has really strict rules.
                 // manager should've remembered that
                 Fail(":> the name of '{0}' only one employee can have", employeeName);
-
                 return;
             }
 
@@ -62,14 +60,9 @@ namespace E007_re_factory
             RecordThat(new EmployeeAssignedToFactory(employeeName));
         }
 
-        void Fail(string message, params object[] args)
+        public void ReceiveShipmentInCargoBay(string shipmentName, params CarPart[] parts)
         {
-            throw new InvalidOperationException(string.Format(message, args));
-        }
-
-        public void TransferShipmentToCargoBay(string shipmentName, params CarPart[] parts)
-        {
-            //Print("?> Command: transfer shipment to cargo bay");
+            //Print("?> Command: receive shipment in cargo bay");
             if (_aggregateState.ListOfEmployeeNames.Count == 0)
             {
                 Fail(":> There has to be somebody at factory in order to accept shipment");
@@ -81,14 +74,14 @@ namespace E007_re_factory
                 return;
             }
 
-            if (_aggregateState.ShipmentsWaitingToBeUnloaded.Count > 2)
+            if (_aggregateState.ShipmentsWaitingToBeUnpacked.Count > 2)
             {
                 Fail(":> More than two shipments can't fit into this cargo bay :(");
                 return;
             }
 
             DoRealWork("opening cargo bay doors");
-            RecordThat(new ShipmentTransferredToCargoBay(shipmentName, parts));
+            RecordThat(new ShipmentReceivedInCargoBay(shipmentName, parts));
 
             var totalCountOfParts = parts.Sum(p => p.Quantity);
             if (totalCountOfParts > 10)
@@ -101,31 +94,43 @@ namespace E007_re_factory
             }
         }
 
-        // Homework - New Functionality to Factory 
-        public void UnloadShipmentFromCargoBay(string employeeName)
+        public void UnpackAndInventoryShipmentInCargoBay(string employeeName)
         {
-            //Print("?> Command: unload shipment from cargo bay");
+            //Print("?> Command: unpacking and inventorying shipment in cargo bay");
 
-            // Rule: Are there actually shipments to unload (cargo bay not empty)?
-            if (_aggregateState.ShipmentsWaitingToBeUnloaded.Count < 1)
+            // Rule: Are there actually shipments to unpack (cargo bay not empty)?
+            if (_aggregateState.ShipmentsWaitingToBeUnpacked.Count < 1)
             {
-                Fail(":> There are no shipments to unload in this cargo bay :(");
+                Fail(":> There are no shipments to unpack in this cargo bay :(");
                 return;
             }
 
-            // Rule: ONLY if the employee hasn't unloaded the cargo bay today
-            if (_aggregateState.EmployeesWhoHaveUnloadedCargoBayToday.Contains(employeeName))
+            // Rule: ONLY if the employee hasn't unpacked the cargo bay today
+            if (_aggregateState.EmployeesWhoHaveUnpackedCargoBayToday.Contains(employeeName))
             {
-                Fail(":> '" + employeeName + "' has already unloaded a cargo bay today, find someone else :");
+                Fail(":> '" + employeeName + "' has already unpacked a cargo bay today, find someone else :");
                 return;
             }
 
-            DoRealWork("'" + employeeName + "'" + " is working on unloading the cargo bay");
-            RecordThat(new ShipmentUnloadedFromCargoBay(employeeName));
+            DoRealWork("'" + employeeName + "'" + " is unpacking the cargo bay");
+
+            // Unpack all Shipments in the CargoBay and Inventory them to the PartsShelf on Factory Floor.
+            Dictionary<string, int> itemsUnpackedAndInventoried = new Dictionary<string,int>();
+
+            // loop through all Shipments waiting in the Cargo Bay
+            foreach (CarPart[] carParts in _aggregateState.ShipmentsWaitingToBeUnpacked)
+            {
+                // pull out each individual item in the shipment and add it to Inventory on the PartsShelf
+                foreach (CarPart carPart in carParts)
+                {
+                    itemsUnpackedAndInventoried.Add(carPart.Name, carPart.Quantity);
+                }
+            }
+
+            RecordThat(new ShipmentUnpackedInCargoBay(employeeName, itemsUnpackedAndInventoried));
         }
 
-        // Homework
-        public void ProduceCar(string employeeName, string carModel)
+        public void ProduceACar(string employeeName, string carModel)
         {
             // Rule: Model T is the only car type that we can currently produce.
             if (carModel != "Model T")
@@ -134,75 +139,75 @@ namespace E007_re_factory
                 return;
             }
 
-            // Rule: if we have an employee available that has not produced a car
-            // TOOO:  I normally wouldn't check for employee availability until after inventory
-            // checks are done but if I can avoid ugly/expensive inventory code below I will!
-
+            // Rule: An Employee may only ProduceACar once a day.  Is one available to produce a car?
             if (_aggregateState.EmployeesWhoHaveProducedACarToday.Contains(employeeName))
             {
                 Fail(":> '" + employeeName + "' has already produced a car today, find someone else :");
                 return;
             }
 
+            // Do we have enough parts to build a Model T?
+
             // Rule:  Parts Needed To Build a Model T
             // 6 wheels
             // 1 engine
             // 2 sets of "bits and pieces"
 
-            // TODO:  REPLACE UGLY INVENTORY COUNTING CODE
-            // THERE IS A BETTER WAY TO DO THIS BUT NOT DOING IT NOW :)
-            // TODO: Rinat, let's discuss a refactor to what I SHOULD have done
-
-            var wheelInventory = 0;
-            var engineInventory = 0;
-            var bitsAndPiecesInventory = 0;
-
-            //Console.WriteLine("_shipmentsWaitingToBeUnloaded contains {0} items", _shipmentsWaitingToBeUnloaded.Count);
-
-            // TODO:  Factory management has confirmed our suspicions that we can't use the
-            // _shipmentsWaitingToBeUnloaded list = to what the inventory in the factory is
-            // There is other work involved in the "UnloadShipmentFromCargoBay" process
-            // that must be performed before we know the ACTUAL parts available for car production.
-            // car parts have to be unloaded first before actually being used for production
-            // HINT: Given, some car parts that were just transferred to cargo bay
-            // and you have enough workers at factory; 
-            // when you try to produce a car, you will get an exception of:
-            // "not enough car parts at factory. did you forget to unload them first?"
-
-            // This confirms orginal concern that the orginal way inventory was tracked needed to be changed
-            // Rather than change in E004 sample, will move existing code to E005 where the code will
-            // be covered by specifications and unit tests which makes the changes less risky
-
-            foreach (CarPart[] cp in _aggregateState.ShipmentsWaitingToBeUnloaded)
+            int itemQuantity = 0;
+            if (_aggregateState.InventoryOfPartsOnShelf.TryGetValue("wheels", out itemQuantity))
             {
-                CarPart[] allWheels = Array.FindAll(cp, element => element.Name == "wheels");
-                wheelInventory += allWheels.Sum(item => item.Quantity);
-                Console.WriteLine("Wheels = {0}", wheelInventory);
-
-                CarPart[] allEngines = Array.FindAll(cp, element => element.Name == "engine");
-                engineInventory += allEngines.Sum(item => item.Quantity);
-                Console.WriteLine("Engines = {0}", engineInventory);
-
-                CarPart[] allBandP = Array.FindAll(cp, element => element.Name == "bits and pieces");
-                bitsAndPiecesInventory += allBandP.Sum(item => item.Quantity);
-                Console.WriteLine("Bits and Pieces = {0}", bitsAndPiecesInventory);
+                // wheels exist, do we have enough?
+                if (itemQuantity < 6)
+                {
+                    Fail(":> Model T needs 6 wheels, we only have " + itemQuantity.ToString() + " :");
+                    return;
+                }
             }
-
-            // Have enough parts to build the car?
-            if (wheelInventory < 6 || engineInventory < 1 || bitsAndPiecesInventory < 2)
+            else
             {
-                // TODO:  Tell them what they need more of
-                Fail(":> We do not have enough parts to build a '" + carModel + "' :");
+                Fail(":> Model T needs 6 wheels, we don't have any wheels in inventory.  Did you forget to unpack a shipment? :");
                 return;
             }
 
+            itemQuantity = 0;
+            if (_aggregateState.InventoryOfPartsOnShelf.TryGetValue("engine", out itemQuantity))
+            {
+                // engine exists, do we have enough?
+                if (itemQuantity < 1)
+                {
+                    Fail(":> Model T needs 1 engine, we have " + itemQuantity.ToString() + " :");
+                    return;
+                }
+            }
+            else
+            {
+                Fail(":> Model T needs 1 engine, we don't have an engine in inventory.  Did you forget to unpack a shipment? :");
+                return;
+            }
+
+            itemQuantity = 0;
+            if (_aggregateState.InventoryOfPartsOnShelf.TryGetValue("bits and pieces", out itemQuantity))
+            {
+                // bits and pieces exist, do we have enough?
+                if (itemQuantity < 2)
+                {
+                    Fail(":> Model T needs 2 bits and pieces, we only have " + itemQuantity.ToString() + " :");
+                    return;
+                }
+            }
+            else
+            {
+                Fail(":> Model T needs 2 bits and pieces, we don't have bits and pieces in inventory.  Did you forget to unpack a shipment? :");
+                return;
+            }
+
+            
             DoRealWork("'" + employeeName + "'" + " is building a '" + carModel + "'");
 
             RecordThat(new CarProduced(employeeName, carModel));
         }
 
-
-
+        // Helpers
         void DoPaperWork(string workName)
         {
             //Print(" > Work:  papers... {0}... ", workName);
@@ -220,7 +225,12 @@ namespace E007_re_factory
             // and also immediately change the state of the Aggregate after we officially record it
             _aggregateState.ChangeMyStateBecauseOf(theEvent);
         }
+        void Fail(string message, params object[] args)
+        {
+            throw new InvalidOperationException(string.Format(message, args));
+        }
     }
+
 
     #region The State of the Factory Has Moved To Its Own Class - Defined Here
     // FactoryState is a new class we added in this E005 sample to keep track of Factory state.
@@ -228,9 +238,10 @@ namespace E007_re_factory
     // to its own dedicated state class.  This is helpful because we can mark the
     // the state class properties as variables that cannot be modified outside of the FactoryState class.
     // (readonly, for example, is how we declared an instance of FactoryState at the top of this file)
-    // (and the ListOfEmployeeNames and ShipmentsWaitingToBeUnloaded lists below are also declared as readonly)
+    // (and the ListOfEmployeeNames and ShipmentsWaitingToBeUnpacked lists below are also declared as readonly)
     // This helps to ensure that you can ONLY MODIFY THE STATE OF THE FACTORY BY USING EVENTS that are known to have happened.
     #endregion
+
     public class FactoryState
     {
         public FactoryState(IEnumerable<IEvent> allEventsThatHaveEverHappened)
@@ -260,8 +271,10 @@ namespace E007_re_factory
         // they get their data from the methods that use them while the methods react to Events that happen
         #endregion
         public readonly List<string> ListOfEmployeeNames = new List<string>();
-        public readonly List<CarPart[]> ShipmentsWaitingToBeUnloaded = new List<CarPart[]>();
-        public readonly List<string> EmployeesWhoHaveUnloadedCargoBayToday = new List<string>();
+        public readonly List<CarPart[]> ShipmentsWaitingToBeUnpacked = new List<CarPart[]>();
+        public readonly List<string> ListOfCurseWordsUttered = new List<string>();
+        public readonly List<string> EmployeesWhoHaveUnpackedCargoBayToday = new List<string>();
+        public readonly Dictionary<string, int> InventoryOfPartsOnShelf = new Dictionary<string, int>();
         public readonly List<string> EmployeesWhoHaveProducedACarToday = new List<string>();
 
         #region How We Tell Everyone About Events That Have Happend With A Perfect Audit Log Of It
@@ -288,52 +301,88 @@ namespace E007_re_factory
         {
             ListOfEmployeeNames.Add(theEvent.EmployeeName);
         }
-        void AnnounceInsideFactory(ShipmentTransferredToCargoBay theEvent)
+        void AnnounceInsideFactory(ShipmentReceivedInCargoBay theEvent)
         {
-            ShipmentsWaitingToBeUnloaded.Add(theEvent.CarParts);
+            ShipmentsWaitingToBeUnpacked.Add(theEvent.CarParts);
         }
         void AnnounceInsideFactory(CurseWordUttered theEvent)
         {
-
+            if (!ListOfCurseWordsUttered.Contains(theEvent.TheWord))
+            {
+                // if this word is not in the list, add it
+                ListOfCurseWordsUttered.Add(theEvent.TheWord);
+            }
         }
-        // Homework
-        void AnnounceInsideFactory(ShipmentUnloadedFromCargoBay theEvent)
+        void AnnounceInsideFactory(ShipmentUnpackedInCargoBay theEvent)
         {
-            // TODO:  See Inventory refactoring notes.
-            // Rule: when we unload shipments from cargo bay then all shipments that are already
-            // stored in the cargo bay are considered unloaded
-            // this means that they are available to the factory for use in the production of cars.
-            // This means that all the parts added to
-            // ShipmentsWaitingToBeUnloaded by the ShipmentTransferredToCargoBay event are now 100%
-            // available for use.
+            // The Factory uses a Dictionary<string, int> InventoryOfPartsOnShelf
+            // to track all of its inventory of parts
 
-            // We do NOT want to clear this list in this example because it BECOMES
-            // the available inventory.
-            // TODO: Should probably use diff vars to represent
-            // "stuff waiting to be unloaded" vs "stuff that has been unloaded"
-            // ShipmentsWaitingToBeUnloaded.Clear();
+            // loop through all inventoryItems that were unpacked and add to official inventory
+            foreach (var inventoryItem in theEvent.ItemsUnpackedAndInventoried)
+            {
+                // See if this type of item is already in the Inventory System
+                if (InventoryOfPartsOnShelf.ContainsKey(inventoryItem.Key))
+                {
+                    // this item type is already known in the inventory system, just change quantity
+                    InventoryOfPartsOnShelf[inventoryItem.Key] =
+                        InventoryOfPartsOnShelf[inventoryItem.Key] + inventoryItem.Value;
+                }
+                else
+                {
+                    // brand new Inventory Item, add it to the Inventory System
+                    InventoryOfPartsOnShelf.Add(inventoryItem.Key, inventoryItem.Value);
+                }
+            }
 
-            // Can uncomment line below to test that cars can't be built
-            // without inventory of parts
-            // ShipmentsWaitingToBeUnloaded.Clear();
+            // Rule: All Shipments in the CargoBay are deemed unpacked and inventoried when this Event happens
+            // So set the number of Shipments in the CargoBay to "0" by clearning the list.
+            ShipmentsWaitingToBeUnpacked.Clear();
 
-            // Rule: an employee can only unload the cargo bay once a day
+            // Rule: an Employee can only unpack all Shipments in the cargo bay once a day
             // so remember who just did it
-
-            EmployeesWhoHaveUnloadedCargoBayToday.Add(theEvent.EmployeeName);
+            EmployeesWhoHaveUnpackedCargoBayToday.Add(theEvent.EmployeeName);
         }
-
         void AnnounceInsideFactory(CarProduced theEvent)
         {
+            // Reduce the Inventory of parts that were just used to ProduceACar
+            // There is a better way to not repeat the hard-coded Model T parts needed but leave it for now
 
-            // TODO:  Reduce the Inventory of parts that were just used
-            // TODO:  But the whole inventory system needs to be revamped I think :)
+            if (theEvent.CarModel == "Model T")
+            {
+                // Parts Needed To Build a Model T
+                // 6 wheels
+                // 1 engine
+                // 2 sets of "bits and pieces
+                // Reduce Parts Stock Inventory by that Amount
 
-            // Rule: an employee can only build one car a day
+                int currentItemQuantity = 0;
+                // TODO:  Rinat, This is atomic and safe right?  I think yes because of Factory Agg boundary but...??
+                // TODO:  Negative inventory concerns, check on eventually consistent stuff.
+                if (InventoryOfPartsOnShelf.TryGetValue("wheels", out currentItemQuantity))
+                {
+                        InventoryOfPartsOnShelf["wheels"] = currentItemQuantity - 6;
+                }
+
+                currentItemQuantity = 0;
+                if (InventoryOfPartsOnShelf.TryGetValue("engine", out currentItemQuantity))
+                {
+                    InventoryOfPartsOnShelf["engine"] = currentItemQuantity - 1;
+                }
+
+                currentItemQuantity = 0;
+                if (InventoryOfPartsOnShelf.TryGetValue("bits and pieces", out currentItemQuantity))
+                {
+                    InventoryOfPartsOnShelf["bits and pieces"] = currentItemQuantity - 2;
+                }
+            }
+
+            // Rule: an employee can only produce one car per day
             // so remember who just did it
 
             EmployeesWhoHaveProducedACarToday.Add(theEvent.EmployeeName);
         }
+
 
         #region What Is This Method For And Why Is It Named This Way?
         // This is the very important "ChangeMyStateBecauseOf" method that provides the only public
@@ -344,6 +393,7 @@ namespace E007_re_factory
         // This method used to be called "Mutate" but in the code I saw that used it, renaming it to
         // "ChangeMyStateBecauseOf" made the code story read better to me.
         #endregion
+
         public void ChangeMyStateBecauseOf(IEvent theEvent)
         {
             #region What Is This Code Doing?
@@ -385,6 +435,7 @@ namespace E007_re_factory
             return string.Format("new factory worker joins our forces: '{0}'", EmployeeName);
         }
     }
+
     [Serializable]
     public class CurseWordUttered : IEvent
     {
@@ -396,13 +447,14 @@ namespace E007_re_factory
             return string.Format("'{0}' was heard within the walls. It meant:\r\n    '{1}'", TheWord, Meaning);
         }
     }
+
     [Serializable]
-    public class ShipmentTransferredToCargoBay : IEvent
+    public class ShipmentReceivedInCargoBay : IEvent
     {
         public string ShipmentName;
         public CarPart[] CarParts;
 
-        public ShipmentTransferredToCargoBay(string shipmentName, params CarPart[] carParts)
+        public ShipmentReceivedInCargoBay(string shipmentName, params CarPart[] carParts)
         {
             ShipmentName = shipmentName;
             CarParts = carParts;
@@ -411,7 +463,7 @@ namespace E007_re_factory
         public override string ToString()
         {
             var builder = new StringBuilder();
-            builder.AppendFormat("Shipment '{0}' transferred to cargo bay:", ShipmentName).AppendLine();
+            builder.AppendFormat("Shipment '{0}' received into cargo bay:", ShipmentName).AppendLine();
             foreach (var carPart in CarParts)
             {
                 builder.AppendFormat("     {0} {1} pcs", carPart.Name, carPart.Quantity).AppendLine();
@@ -419,21 +471,25 @@ namespace E007_re_factory
             return builder.ToString();
         }
     }
+
     [Serializable]
-    public class ShipmentUnloadedFromCargoBay : IEvent
+    public class ShipmentUnpackedInCargoBay : IEvent
     {
         public string EmployeeName;
+        public IDictionary<string, int> ItemsUnpackedAndInventoried;
 
-        public ShipmentUnloadedFromCargoBay(string employeeName)
+        public ShipmentUnpackedInCargoBay(string employeeName, IDictionary<string, int> itemsUnpackedAndInventoried)
         {
             EmployeeName = employeeName;
+            ItemsUnpackedAndInventoried = itemsUnpackedAndInventoried;
         }
 
         public override string ToString()
         {
-            return string.Format("Employee: '{0}' unloaded all shipments in the cargo bay", EmployeeName);
+            return string.Format("Employee: '{0}' unpacked and inventoried all shipments in the cargo bay", EmployeeName);
         }
     }
+
     [Serializable]
     public class CarProduced : IEvent
     {
@@ -451,6 +507,7 @@ namespace E007_re_factory
             return string.Format("Employee: '{0}' produced a '{1}'", EmployeeName, CarModel);
         }
     }
+
     [Serializable]
     public sealed class CarPart
     {
