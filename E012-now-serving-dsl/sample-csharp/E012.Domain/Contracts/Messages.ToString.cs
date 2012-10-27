@@ -9,7 +9,7 @@ namespace E012.Contracts
     /// </summary>
     static class Describe
     {
-        public static string Message(ShipmentTransferredToCargoBay e)
+        public static string Message(ShipmentReceivedInCargoBay e)
         {
             var builder = new StringBuilder();
             builder.AppendFormat("Shipment '{0}' transferred to cargo bay:", e.Shipment.Name).AppendLine();
@@ -20,11 +20,17 @@ namespace E012.Contracts
             return builder.ToString();
         }
 
-        public static string Message(TransferShipmentToCargoBay e)
+        public static string Message(ReceiveShipmentInCargoBay e)
         {
-            return string.Format(@"Transfer shipment '{0}' to cargo bay:{1}"
+            // TODO:  Need to fix this now that it uses InventoryShipment shipment instead of parts array.
+            //return string.Format(@"Received shipment '{0}' in cargo bay:{1}"
+            //        , e.ShipmentName
+            //        , e.Parts.Aggregate("", (x, y) => x + string.Format("\r\n{0}:{1}", y.Name, y.Quantity))
+            //    );
+
+            return string.Format(@"Received shipment '{0}' in cargo bay:{1}"
                     , e.ShipmentName
-                    , e.Parts.Aggregate("", (x, y) => x + string.Format("\r\n{0}:{1}", y.Name, y.Quantity))
+                    , "TODO: Need to Show Part In Inventory"
                 );
         }
 
@@ -39,7 +45,7 @@ namespace E012.Contracts
 
         }
 
-        public static string Message(UnloadedFromCargoBay e)
+        public static string Message(ShipmentUnpackedInCargoBay e)
         {
             var builder = new StringBuilder();
             builder.AppendFormat("{0} unload:", e.EmployeeName).AppendLine();

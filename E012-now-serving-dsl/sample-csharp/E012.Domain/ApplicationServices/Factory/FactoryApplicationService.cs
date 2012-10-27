@@ -19,74 +19,77 @@ namespace E012.ApplicationServices.Factory
         private readonly IEventStore _eventStore;
 
         // domain service that is neeeded by the Factory aggregate
-        private readonly ICarBlueprintLibrary _library;
+        private readonly ICarBlueprintLibrary _carBlueprintLibrary;
 
         // pass dependencies that are needed for this application service via its constructor
-        public FactoryApplicationService(IEventStore eventStore, ICarBlueprintLibrary library)
+        public FactoryApplicationService(IEventStore eventStore, ICarBlueprintLibrary carBlueprintLibrary)
         {
             _eventStore = eventStore;
-            _library = library;
+            _carBlueprintLibrary = carBlueprintLibrary;
         }
 
         // implementing this Execute method is a requirement of the IApplicationService interface
         public void Execute(object command)
         {
             // pass the command to a specific method named 'When'
-            // that knows how to handle this type of command
+            // that knows how to handle this type of command message
+
             ((dynamic)this).When((dynamic)command);
         }
 
+        
         // this Update method abstracts away the name of the exact aggregate method that we will be using/calling
         // this approach allows us to use this single Update method for multiple command messages
-        // this method is where we implement the lifetime management of a FactoryAggregate in one place
-        void Update(ICommand<FactoryId> c, Action<FactoryAggregate> execute)
+        // this method is where we implement the lifetime management of an Aggregate in one place
+
+        void Update(ICommand<FactoryId> forAggregateIdentifiedBy, Action<FactoryAggregate> executeCommandUsingThis)
         {
-            // Load the event stream from the store using the FactoryId of the passed in command
-            var eventStream = _eventStore.LoadEventStream(c.Id);
+            // Load the event stream from the event store using the FactoryId of the passed in command
+            var eventStream = _eventStore.LoadEventStream(forAggregateIdentifiedBy.Id);
 
-            // create a new Factory aggregate instance from its history of events
-            var state = new FactoryState(eventStream.Events);
-            var agg = new FactoryAggregate(state);
+            // create a new Factory aggregate instance from its history of allEventsRelatedToThisAggregateId
+            var aggregateState = new FactoryState(eventStream.Events);
+            var aggregate = new FactoryAggregate(aggregateState);
 
-            // execute the delegated Action (lambda that contains a reference to a specific method call)
+            // execute the delegated Action (lambda that contains a reference to a specific aggregate method call)
             // that was passed to this Update method by the "When" methods below
-            execute(agg);
+            executeCommandUsingThis(aggregate);
 
-            // append resulting changes to the aggregate state to the event stream
-            _eventStore.AppendEventsToStream(c.Id, eventStream.StreamVersion, agg.Changes);
+            // append resulting changes to the aggregate's event stream
+            _eventStore.AppendEventsToStream(forAggregateIdentifiedBy.Id, eventStream.StreamVersion, aggregate.EventsThatHappened);
         }
 
-        // Now let's use the Update helper method above to wire command messages to actual factory aggregate methods
-        public void When(ProduceCar c)
+        // Now let's use the Update helper method above to wire command messages to actual aggregate methods
+        public void When(ProduceACar cmd)
         {
-            Update(c, ar => ar.ProduceCar(c.EmployeeName, c.CarModel, _library));
+            Update(cmd, ar => ar.ProduceACar(cmd.EmployeeName, cmd.CarModel, _carBlueprintLibrary));
         }
 
-        public void When(AssignEmployeeToFactory c)
+        public void When(AssignEmployeeToFactory cmd)
         {
-            Update(c, ar => ar.AssignEmployeeToFactory(c.EmployeeName));
+            Update(cmd, ar => ar.AssignEmployeeToFactory(cmd.EmployeeName));
         }
 
-        public void When(CurseWordUttered c)
+        public void When(CurseWordUttered cmd)
         {
             //throw new NotImplementedException();
         }
 
-        public void When(TransferShipmentToCargoBay c)
+        public void When(ReceiveShipmentInCargoBay cmd)
         {
-            Update(c,
+            Update(cmd,
                    ar =>
-                   ar.TransferShipmentToCargoBay(c.ShipmentName, new InventoryShipment(c.ShipmentName, c.Parts)));
+                   ar.ReceiveShipmentInCargoBay(cmd.ShipmentName, new InventoryShipment(cmd.ShipmentName, cmd.CarParts)));
         }
 
-        public void When(UnloadShipmentFromCargoBay c)
+        public void When(UnpackAndInventoryShipmentInCargoBay cmd)
         {
-            Update(c, ar => ar.UnloadShipmentFromCargoBay(c.EmployeeName));
+            Update(cmd, ar => ar.UnpackAndInventoryShipmentInCargoBay(cmd.EmployeeName));
         }
 
-        public void When(OpenFactory c)
+        public void When(OpenFactory cmd)
         {
-            Update(c, ar => ar.OpenFactory(c.Id));
+            Update(cmd, ar => ar.OpenFactory(cmd.Id));
         }
     }
 }

@@ -5,42 +5,46 @@ using E012.Contracts;
 namespace E012.ApplicationServices.Factory
 {
     /// <summary>
-    /// <para>Implementation of the factory aggregate. In production it is loaded and operated by a <see cref="FactoryApplicationService"/>, which loads it from
-    /// event storage and calls the appropriate methods and passing arguments in as needed.</para>
-    /// <para>In test environments (e.g. in unit tests), this aggregate can be instantiated directly or by wiring the same application service to the test environment.</para>
+    /// <para>Implementation of the (car) factory aggregate.
+    /// In production it is loaded and operated by a <see cref="FactoryApplicationService"/>, which loads it from
+    /// event storage and calls the appropriate methods and passes arguments to them as needed.</para>
+    /// <para>In test environments (thisEventTypeHappened.g. in unit tests), this aggregate can be instantiated directly
+    /// or by wiring the same application service to the test environment.</para>
     /// </summary>
     public class FactoryAggregate
     {
-        /// <summary> List of uncommitted changes </summary>
-        public List<IEvent> Changes = new List<IEvent>();
+        /// <summary> List of FactoryAggregate aggregateState changes represented by Events that have happened.</summary>
+        public List<IEvent> EventsThatHappened = new List<IEvent>();
 
         /// <summary>
-        /// Aggregate state, which is separate from this class in order to ensure, that we modify it ONLY by passing events.
+        /// AggregateState is kept separate from its Aggregate class in order to ensure
+        /// that we modify an Aggregate's aggregateState ONLY by passing Events (event messages).
         /// </summary>
-        readonly FactoryState _state;
-        public FactoryAggregate(FactoryState state)
+        readonly FactoryState _aggregateState;
+        public FactoryAggregate(FactoryState aggregateState)
         {
-            _state = state;
+            _aggregateState = aggregateState;
         }
+
+        // Aggregate's method below modify internal "state" variables by doing their work and generating Events
 
         public void OpenFactory(FactoryId id)
         {
-            if (_state.Id != null)
+            // if the thing that tracks an aggregate's state already has and Id, the agg with that Id already exists!
+            if (_aggregateState.Id != null)
                 throw DomainError.Named("factory-already-created", "Factory was already created");
 
-            Apply(new FactoryOpened(id));
+            RecordAndRealizeThat(new FactoryOpened(id));
         }
 
 
         public void AssignEmployeeToFactory(string employeeName)
         {
-            //Print("?> Command: Assign employee {0} to factory", employeeName);
+            ThrowExceptionIfFactoryIsNotOpen();
 
-            ThrowExceptionIfNotOpenFactory();
-
-            if (_state.ListOfEmployeeNames.Contains(employeeName))
+            if (_aggregateState.ListOfEmployeeNames.Contains(employeeName))
             {
-                // yes, this is really weird check, but this factory has really strict rules.
+                // yes, this is a really weird check, but this factory has really strict rules.
                 // manager should've remembered that
                 throw DomainError.Named("more than 1 person", ":> the name of '{0}' only one employee can have", employeeName);
             }
@@ -49,87 +53,101 @@ namespace E012.ApplicationServices.Factory
                 throw DomainError.Named("bender-employee", ":> Guys with name 'bender' are trouble.");
 
             DoPaperWork("Assign employee to the factory");
-            Apply(new EmployeeAssignedToFactory(_state.Id, employeeName));
+
+            RecordAndRealizeThat(new EmployeeAssignedToFactory(_aggregateState.Id, employeeName));
         }
 
 
-        public void TransferShipmentToCargoBay(string shipmentName, InventoryShipment shipment)
+        public void ReceiveShipmentInCargoBay(string shipmentName, InventoryShipment shipment)
         {
-            ThrowExceptionIfNotOpenFactory();
-            //Print("?> Command: transfer shipment to cargo bay");
-            if (_state.ListOfEmployeeNames.Count == 0)
+            ThrowExceptionIfFactoryIsNotOpen();
+
+            if (_aggregateState.ListOfEmployeeNames.Count == 0)
                 throw DomainError.Named("unknown-employee", ":> There has to be somebody at factory in order to accept shipment");
             
             if (shipment.Cargo.Length == 0)
                 throw DomainError.Named("empty-InventoryShipments", ":> Empty InventoryShipments are not accepted!");
 
-            if (_state.ShipmentsWaitingToBeUnloaded.Count >= 2)
+            if (_aggregateState.ShipmentsWaitingToBeUnpacked.Count > 2)
                 throw DomainError.Named("more-than-two-InventoryShipments", ":> More than two InventoryShipments can't fit into this cargo bay :(");
 
             DoRealWork("opening cargo bay doors");
-            Apply(new ShipmentTransferredToCargoBay(_state.Id, shipment));
+
+            RecordAndRealizeThat(new ShipmentReceivedInCargoBay(_aggregateState.Id, shipment));
 
             var totalCountOfParts = shipment.Cargo.Sum(p => p.Quantity);
             if (totalCountOfParts > 10)
             {
-                Apply(new CurseWordUttered(_state.Id, "Boltov tebe v korobky peredach",
+                RecordAndRealizeThat(new CurseWordUttered(_aggregateState.Id, "Boltov tebe v korobky peredach",
                                            "awe in the face of the amount of shipment delivered"));
             }
         }
 
-        public void UnloadShipmentFromCargoBay(string employeeName)
+        public void UnpackAndInventoryShipmentInCargoBay(string employeeName)
         {
-            ThrowExceptionIfNotOpenFactory();
-            //Print("?> Command: Unload Shipment From Cargo Bay");
+            ThrowExceptionIfFactoryIsNotOpen();
 
-            if (!_state.ListOfEmployeeNames.Contains(employeeName))
+            if (_aggregateState.ListOfEmployeeNames.Count == 0)
+                throw DomainError.Named("unknown-employee", ":> There has to be somebody at factory in order to accept shipment");
+            
+            // Rule: An Employee is only allowed to Unpack ONCE a Day
+            if (_aggregateState.EmployeesWhoHaveUnpackedCargoBayToday.Contains(employeeName))
             {
-                throw DomainError.Named("unknown-employee", ":> '{0}' not assigned to factory", employeeName);
+                throw DomainError.Named("employee-already-unpacked-cargo", ":> '{0}' has already unpacked a cargo bay today", employeeName);
             }
 
-            if (_state.ShipmentsWaitingToBeUnloaded.Count == 0)
+            if (_aggregateState.ShipmentsWaitingToBeUnpacked.Count < 1)
             {
                 throw DomainError.Named("empty-InventoryShipments", ":> InventoryShipments not found");
             }
 
-            DoRealWork("unload shipment");
+            DoRealWork("'" + employeeName + "'" + " is unpacking the cargo bay");
+
             var shipments = new List<InventoryShipment>();
-            while (_state.ShipmentsWaitingToBeUnloaded.Count > 0)
+            while (_aggregateState.ShipmentsWaitingToBeUnpacked.Count > 0)
             {
-                var parts = _state.ShipmentsWaitingToBeUnloaded.First();
+                var parts = _aggregateState.ShipmentsWaitingToBeUnpacked.First();
                 shipments.Add(parts.Value);
-                Apply(new UnloadedFromCargoBay(_state.Id, employeeName, shipments.ToArray()));
+                RecordAndRealizeThat(new ShipmentUnpackedInCargoBay(_aggregateState.Id, employeeName, shipments.ToArray()));
 
             }
         }
 
-        public void ProduceCar(string employeeName, string carModel, ICarBlueprintLibrary library)
+        public void ProduceACar(string employeeName, string carModel, ICarBlueprintLibrary carBlueprintLibrary)
         {
-            ThrowExceptionIfNotOpenFactory();
+            ThrowExceptionIfFactoryIsNotOpen();
 
-            if (!_state.ListOfEmployeeNames.Contains(employeeName))
+            if (!_aggregateState.ListOfEmployeeNames.Contains(employeeName))
                 throw DomainError.Named("unknown-employee", ":> '{0}' not assigned to factory", employeeName);
 
-            var design = library.TryGetBlueprintForModelOrNull(carModel);
+            var design = carBlueprintLibrary.TryToGetBlueprintForModelOrNull(carModel);
 
             if (design == null)
                 throw DomainError.Named("car-model-not-found", "Model '{0}' not found", carModel);
 
+
+            var partsUsedToBuildCar = new List<CarPart>();
+
             foreach (var part in design.RequiredParts)
             {
-                if (_state.GetNumberOfAvailablePartsQuantity(part.Name) < part.Quantity)
-                    throw DomainError.Named("part-not-found", ":> {0} not found", part.Name);
+                if (_aggregateState.GetNumberOfAvailablePartsQuantity(part.Name) < part.Quantity)
+                    throw DomainError.Named("required-part-not-found", ":> {0} not found", part.Name);
+
+                // remeber the CarPart that will be used to build the specififed carModel
+                partsUsedToBuildCar.Add(new CarPart(part.Name, part.Quantity));
             }
 
+            DoRealWork("produce a car - " +  "'" + employeeName + "'" + " is building a '" + carModel + "'");
 
-            DoRealWork("produce car");
+            // As mentioned in Episode 12 of the BTW podcast, this code below is wrong.
+            // The ICarBlueprintLibrary passed in, is not used.  Hard coded "parts" was ALWAYS used.
+            // Tried to fix with the partsUsedToBuildCar approach but needs to be tested.
+            // var parts = new[] { new CarPart("chassis", 1), new CarPart("wheels", 4), new CarPart("engine", 1) };
 
-            // TODO: As mentioned in Episode 12 of the BTW podcast, this code below is wrong.
-            // TODO: The ICarBlueprintLibrary passed in, is not used.  Hard coded "parts" are ALWAYS used.
-
-            var parts = new[] { new CarPart("chassis", 1), new CarPart("wheels", 4), new CarPart("engine", 1) };
-            Apply(new CarProduced(_state.Id, employeeName, carModel, parts));
+            RecordAndRealizeThat(new CarProduced(_aggregateState.Id, employeeName, carModel, partsUsedToBuildCar.ToArray()));
         }
+
+        // Helpers Below
 
         void DoPaperWork(string workName)
         {
@@ -141,19 +159,22 @@ namespace E012.ApplicationServices.Factory
             //Print(" > Work:  heavy stuff... {0}...", workName);
         }
 
-        void Apply(IEvent e)
+        void RecordAndRealizeThat(IEvent theEvent)
         {
-            // we record by jotting down notes in our journal
-            Changes.Add(e);
-            // and also immediately change the state
-            _state.Mutate(e);
+            // we record by "writing down" the Event that happened in our "journal"
+
+            EventsThatHappened.Add(theEvent);
+
+            // and also immediately Realize theEvent has happened by changing _aggregateState after we have recorded it
+
+            _aggregateState.MakeAggregateRealize(theEvent);
         }
 
-        void ThrowExceptionIfNotOpenFactory()
+        void ThrowExceptionIfFactoryIsNotOpen()
         {
-            // in almost all cases factory should be opened before
-            // operation can proceed. We verify this here.
-            if(_state.Id==null)
+            // in almost all cases a factory should be opened before
+            // any other operation can proceed. We verify this here.
+            if(_aggregateState.Id==null)
                 throw DomainError.Named("factory-is-not-open", "Factory is not open");
         }
     }

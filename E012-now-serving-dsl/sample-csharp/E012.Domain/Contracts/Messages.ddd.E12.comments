@@ -1,4 +1,4 @@
-// Note: There are A LOT of comments in this file to document things for learning purposes.
+﻿// Note: There are A LOT of comments in this file to document things for learning purposes.
 // Note: To see a sample of the DSL syntax WITHOUT all of the comment noise, please see the file: 'Messages.ddd.clean.no.comments'
 // 
 // This file contains compact Message contract representations for our domain. You can percieve these
@@ -136,13 +136,12 @@ interface Factory(FactoryId Id)
       // NukeFactory?()
       // FactoryNuked!()
 
+    ProduceCar?(employee, string carModel)
+        explicit "Employee '{employee}' produce car:{carModel}"
+    CarProduced!(employee, string carModel, CarPart[] parts)
+        explicit Describe.Message(this)
 
-    OpenFactory?()
-        explicit "Open factory(ID='{Id}')"
-    FactoryOpened!()
-        explicit "Opened factory(ID='{Id}')"
-
-
+    
     AssignEmployeeToFactory?(employee)
         explicit "Assign employee '{employeeName}'"
     EmployeeAssignedToFactory! (employee)
@@ -150,26 +149,28 @@ interface Factory(FactoryId Id)
 
 
 
-    ReceiveShipmentInCargoBay?(string shipmentName, CarPart[] carParts)
-       explicit Describe.Message(this)
-    ShipmentReceivedInCargoBay!(InventoryShipment shipment)
-        explicit Describe.Message(this)
-   
-
     CurseWordUttered!(string theWord,string meaning)
         explicit "'{theWord}' was heard within the walls. It meant:\r\n    '{meaning}'"
 
 
-    UnpackAndInventoryShipmentInCargoBay?(employee)
+
+    ShipmentTransferredToCargoBay!(InventoryShipment shipment)
+        explicit Describe.Message(this)
+    TransferShipmentToCargoBay?(string shipmentName, CarPart[] parts)
+        explicit Describe.Message(this)
+
+
+
+    UnloadedFromCargoBay!(employee, InventoryShipment[] inventoryShipments)
+        explicit Describe.Message(this)
+    UnloadShipmentFromCargoBay?(employee)
         explicit "Unload the cargo '{employeeName}'"
-    ShipmentUnpackedInCargoBay!(employee, InventoryShipment[] inventoryShipments)
-        explicit Describe.Message(this)
-    
 
-    ProduceACar?(employee, string carModel, ICarBlueprintLibrary carBlueprintLibrary)
-        explicit "Employee '{employee}' produce car:{carModel}"
-    CarProduced!(employee, string carModel, CarPart[] parts)
-        explicit Describe.Message(this)
 
+
+    FactoryOpened!()
+        explicit "Opened factory(ID='{Id}')"
+    OpenFactory?()
+        explicit "Open factory(ID='{Id}')"
 }
 

@@ -59,7 +59,9 @@
     <None Include="..\README.md">
       <Link>README.md</Link>
     </None>
-    <None Include="Contracts\Messages.ddd.clean.no.comments" />
+    <None Include="Contracts\Messages.ddd.E12.clean.no.comments" />
+    <None Include="Contracts\Messages.ddd.E12.comments" />
+    <None Include="FactoryLanguageAndRules.md" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

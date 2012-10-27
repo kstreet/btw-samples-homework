@@ -6,40 +6,47 @@ using E012.Contracts;
 namespace E012.ApplicationServices.Factory
 {
     /// <summary>
-    /// This is the state of the Factory aggregate.
-    /// It can be mutated only by passing events to it
-    /// (either via constructor or mutation method).
+    /// This is the aggregateState of the Factory aggregate.
+    /// It can be mutated/changed by passing in allEventsRelatedToThisAggregateId so you can make it realize this reality.
+    /// (either via constructor or MakeAggregateRealize [mutation] method).
     /// </summary>
 
-    // TODO: In Episode 12 Rinat mentions that the FactoryState class should implement the IFactoryState interface to
-    // ensure that we implement new Commands and Events as they are created or we will get build errors to remind us.
-    // If I try this though:
-    // public class FactoryState : IFactoryState
-    // I get build errors about: "cannot implement an interface member because it is not public"
-    // There are several suggested solutions out there like this:
-    // http://blogs.msdn.com/b/johnwpowell/archive/2008/06/13/how-to-implement-an-interface-without-making-members-public-using-explicit-interface-implementation.aspx
-    // But will wait for another time to resolve.  For now, will not claim to implement IFactoryState below.
-
-    public class FactoryState
+    // Note that in order to build the code when implemetning IFactoryState, we needed to make the "When" methods below public.
+    public class FactoryState : IFactoryState
     {
-        public FactoryState(IEnumerable<IEvent> events)
+        public FactoryState(IEnumerable<IEvent> allEventsRelatedToThisAggregateId)
         {
-            // this will load and replay the "list" of all the events that are passed into this contructor
+            #region What This Constructor Is Doing
+            // this will load and replay the "list" of all the allEventsRelatedToThisAggregateId that are passed into this contructor
             // this brings this FactoryState instance up to date with 
-            // all events that have EVER HAPPENED to its associated Factory aggregate entity
-            foreach (var @event in events)
+            // all allEventsRelatedToThisAggregateId that have EVER HAPPENED to its associated Factory aggregate entity
+            // Note, I don't like funky @ symbols in my variables to bypass reserved words
+            // and I aslo think the story reads better when it is called "eventThatHappened" anyway.
+            #endregion
+
+            foreach (var eventThatHappened in allEventsRelatedToThisAggregateId)
             {
-                // call my public Mutate method (defined below) to get my state up to date
-                Mutate(@event);
+                #region Naming Notes
+                // call my public MakeAggregateRealize method (defined below) to get my aggregateState up to date with all related Events
+                // This used to be called "Mutate" but in the code I saw that used it, renaming to
+                // "MakeAggregateRealize" made the code story read better to me.
+                #endregion
+
+                MakeAggregateRealize(eventThatHappened);
             }
         }
 
-        // lock our state changes down to only events that can modify these lists
+        // lock our aggregateState changes down to only allEventsRelatedToThisAggregateId that can modify these lists
+        // this helps to ensure that we can ONLY MODIFY THE STATE OF THE AGGREGATE  BY USING EVENTS that are known to have happened.
+
         readonly Dictionary<string, int> _availableParts = new Dictionary<string, int>();
 
         public readonly List<string> ListOfEmployeeNames = new List<string>();
-        public readonly Dictionary<string, InventoryShipment> ShipmentsWaitingToBeUnloaded = new Dictionary<string, InventoryShipment>();
+        public readonly Dictionary<string, InventoryShipment> ShipmentsWaitingToBeUnpacked = new Dictionary<string, InventoryShipment>();
+        public readonly List<string> ListOfCurseWordsUttered = new List<string>();
+        public readonly List<string> EmployeesWhoHaveUnpackedCargoBayToday = new List<string>();
         public readonly List<string> CreatedCars = new List<string>();
+        public readonly List<string> EmployeesWhoHaveProducedACarToday = new List<string>();
 
         public FactoryId Id { get; private set; }
 
@@ -48,31 +55,37 @@ namespace E012.ApplicationServices.Factory
             return _availableParts.ContainsKey(name) ? _availableParts[name] : 0;
         }
 
-        void When(FactoryOpened e)
+        // announcements inside the factory that we react to and realize WHEN thisEventTypeHappened happens
+        public void When(FactoryOpened theEvent)
         {
-            Id = e.Id;
+            Id = theEvent.Id;
         }
 
-        // announcements inside the factory
-        void When(EmployeeAssignedToFactory e)
+        public void When(EmployeeAssignedToFactory theEvent)
         {
-            ListOfEmployeeNames.Add(e.EmployeeName);
-        }
-        void When(ShipmentTransferredToCargoBay e)
-        {
-            ShipmentsWaitingToBeUnloaded.Add(e.Shipment.Name, new InventoryShipment(e.Shipment.Name, e.Shipment.Cargo));
+            ListOfEmployeeNames.Add(theEvent.EmployeeName);
         }
 
-        void When(CurseWordUttered e)
+        public void When(ShipmentReceivedInCargoBay theEvent)
         {
-
+            ShipmentsWaitingToBeUnpacked.Add(theEvent.Shipment.Name, 
+                                            new InventoryShipment(theEvent.Shipment.Name,theEvent.Shipment.Cargo));
         }
 
-        void When(UnloadedFromCargoBay e)
+        public void When(CurseWordUttered theEvent)
         {
-            foreach (var shipmentInCargoBay in e.InventoryShipments)
+            if (!ListOfCurseWordsUttered.Contains(theEvent.TheWord))
             {
-                ShipmentsWaitingToBeUnloaded.Remove(shipmentInCargoBay.Name);
+                // if this word is not in the list, add it
+                ListOfCurseWordsUttered.Add(theEvent.TheWord);
+            }
+        }
+
+        public void When(ShipmentUnpackedInCargoBay theEvent)
+        {
+            foreach (var shipmentInCargoBay in theEvent.InventoryShipments)
+            {
+                ShipmentsWaitingToBeUnpacked.Remove(shipmentInCargoBay.Name);
 
                 foreach (var part in shipmentInCargoBay.Cargo)
                 {
@@ -82,13 +95,17 @@ namespace E012.ApplicationServices.Factory
                         _availableParts[part.Name] += part.Quantity;
                 }
             }
+
+            // Rule: an Employee can only unpack shipments in the cargo bay once a day
+            // so remember who just did it
+            EmployeesWhoHaveUnpackedCargoBayToday.Add(theEvent.EmployeeName);
         }
 
-        void When(CarProduced e)
+        public void When(CarProduced theEvent)
         {
-            CreatedCars.Add(e.CarModel);
+            CreatedCars.Add(theEvent.CarModel);
 
-            foreach (var carPart in e.Parts)
+            foreach (var carPart in theEvent.Parts)
             {
                 var removed = carPart.Quantity;
 
@@ -103,28 +120,42 @@ namespace E012.ApplicationServices.Factory
             {
                 _availableParts.Remove(emptyPartKey);
             }
+
+            // Rule: an employee can only produce one car per day
+            // so remember who just did it
+
+            EmployeesWhoHaveProducedACarToday.Add(theEvent.EmployeeName);
+
         }
 
-        // This is the very important Mutate method that provides the only public
-        // way for factory state to be modified.  Mutate ONLY ACCEPTS EVENTS that have happened.
-        // It then CHANGES THE STATE of the factory by calling the methods above
-        // that wrap the readonly state variables that should be modified only when the associated event(s)
+
+        #region What Is This Method For And Why Is It Named This Way?
+        // This is the very important "MakeAggregateRealize" method that provides the only public
+        // way for Aggregate state to be modified.  "MakeAggregateRealize" ONLY ACCEPTS EVENTS that have happened.
+        // It then CHANGES THE STATE of the Aggregate by calling the "When" methods above
+        // that wrap the readonly aggregateState variables that should be modified only when the associated Event(s)
         // that they care about have occured.
-        public void Mutate(IEvent e)
-        {
-            // we also announce this event inside of the factory.
-            // this way, all workers will immediately know
-            // what is going on inside the factory.  We are telling the compiler
-            // to call one of the "When" methods defined above.
-            // The "dynamic" syntax below is just a shortcut we are using so we don't
-            // have to create a large if/else block for a bunch of specific event types.
-            // This shortcut "dynamic" syntax means:
-            // "Call this FactoryState's instance of the When method
-            // that has a method signature of:
-            // When(WhateverTheCurrentTypeIsOfThe-e-EventThatWasPassedIntoMutate)".
-            ((dynamic)this).When((dynamic)e);
-        }
+        // This method used to be called "Mutate" but in the code I saw that used it, renaming it to
+        // "MakeAggregateRealize" made the code story read better to me.
+        #endregion
 
+        public void MakeAggregateRealize(IEvent thisEventTypeHappened)
+        {
+           
+            #region What Is This Code/Syntax Doing?
+            // After the Aggregate records the Event, we announce this Event to all those
+            // that care about it to help them Realize that things have changed.
+            // We are telling the compiler to call one of the "When" methods defined above to achieve this realization.
+            // The "dynamic" syntax below is just a shortcut we are using so we don't
+            // have to create a large if/else block for a bunch of type-specific static Event types.
+            // This shortcut using the "dynamic" keyword syntax means:
+            // "Call 'this' Aggregates's instance of the 'When' method
+            // that has a method signature of:
+            // When(WhateverTheCurrentEventTypeIsOf-thisEventTypeHappened)".
+            #endregion
+
+            ((dynamic)this).When((dynamic)thisEventTypeHappened);
+        }
 
     }
 }

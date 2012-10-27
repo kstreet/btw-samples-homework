@@ -7,7 +7,7 @@ namespace E012.Contracts
     /// </summary>
     public interface ICarBlueprintLibrary
     {
-        CarBlueprint TryGetBlueprintForModelOrNull(string modelName);
+        CarBlueprint TryToGetBlueprintForModelOrNull(string modelName);
     }
 
     // This class defines the 'CarBlueprint' Value Object type that is returned by this interface
