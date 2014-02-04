@@ -66,29 +66,29 @@ TODO:  Clean-up later as it is still half markup half MS Word.
 **CarNotProduced**(IIdentity WorkerId, string Excuse)
 
 **UnloadCargoBay** (IIdentity ManagerId , IIdentity WorkerId, int BayId)
-CargoBayUnloaded (IIdentity WorkerId, int BayId)
+**CargoBayUnloaded** (IIdentity WorkerId, int BayId)
 
 // **TODO**: how should we create things for negative cases?
-CargoBayNotUnloaded(IIdentity WorkerId, string Excuse, int BayId)
+**CargoBayNotUnloaded**(IIdentity WorkerId, string Excuse, int BayId)
 
 
 **WorkOvertime** (IIdentity ManagerId , IIdentity WorkerId, DateTime Duration)
 **OvertimeWorked** (IIdentity WorkerId, DateTime Duration)
 
 **IgnoreManager**?? (**TODO**:  How do we convey the actions/intention of workers like this one?)
-**ManagerIgnored**?? (TODO: See IgnoreManage
+**ManagerIgnored**?? (**TODO**: See IgnoreManage)
 
 **RecordSpokenWord**(IIdentity WorkerId, string WordSpoken)
 **SpokenWordRecorded**(IIdentity WorkerId, string WordSpoken)
 
 
-// TODO:  For Reports/Projections do we generate commands from the client UI to show them?
+// **TODO**:  For Reports/Projections do we generate commands from the client UI to show them?
 **CreateCarProductionReport**(DateTime StartDate DateTime EndDate)
 **CarProductionReportCreated**(IIdentity ReportId, Url ReportLocation)
 
-// TODO: Similar for other reports if in fact we should use Commands/Events for this stuff.
+// **TODO**: Similar for other reports if in fact we should use Commands/Events for this stuff.
 
-// TODO:  Stopped for now as I see a lot more stuff that could be added.  When do you stop and just do it in code? DSL please! :)
+// **TODO**:  Stopped for now as I see a lot more stuff that could be added.  When do you stop and just do it in code? DSL please! :)
 
 
 
